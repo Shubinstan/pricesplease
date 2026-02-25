@@ -75,7 +75,7 @@ async def scrape_steam():
                 try:
                     response = requests.post(API_URL, json=payload)
                     if response.status_code == 200:
-                         
+
                         print(
                             f"✅ Saved: {raw_title} | Price: {payload['price']} | Discount: {payload['discount_percent']}%"
                         )
