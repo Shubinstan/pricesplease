@@ -8,6 +8,7 @@ from src.db.models import Game
 from src.schemas.game import GameScrapeRequest
 from src.services.crud import process_scraped_game
 
+
 def create_app() -> FastAPI:
     app = FastAPI(title=settings.PROJECT_NAME, version=settings.VERSION)
 
@@ -37,16 +38,17 @@ def create_app() -> FastAPI:
             # Pass new fields to CRUD
             price=payload.price,
             currency=payload.currency,
-            discount_percent=payload.discount_percent
+            discount_percent=payload.discount_percent,
         )
-        
+
         return {
             "status": "success",
             "message": "Game and price successfully processed",
             "normalized_title": game.title,
-            "game_id": game.id
+            "game_id": game.id,
         }
 
     return app
+
 
 app = create_app()

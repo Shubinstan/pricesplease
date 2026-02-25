@@ -26,6 +26,7 @@ logger = logging.getLogger(__name__)
 bot = Bot(token=settings.TELEGRAM_BOT_TOKEN)
 dp = Dispatcher()
 
+
 @dp.message(CommandStart())
 async def command_start_handler(message: Message) -> None:
     """
@@ -41,6 +42,7 @@ async def command_start_handler(message: Message) -> None:
     )
     await message.answer(welcome_text)
 
+
 @dp.message(Command("status"))
 async def status_handler(message: Message) -> None:
     """
@@ -49,46 +51,52 @@ async def status_handler(message: Message) -> None:
     logger.info(f"User {message.from_user.id} requested system status.")
     await message.answer("🟢 System is ONLINE.\n\nDatabase: Connected\nScraper: Ready")
 
+
 @dp.message(Command("games"))
 async def games_handler(message: Message) -> None:
     """
     Handles the /games command. Fetches games, stores, and latest prices.
     """
     logger.info(f"User {message.from_user.id} requested the games list.")
-    
+
     db = SessionLocal()
     try:
         games = db.query(Game).limit(10).all()
-        
+
         if not games:
-            await message.answer("📭 The database is currently empty. Run the scraper first.")
+            await message.answer(
+                "📭 The database is currently empty. Run the scraper first."
+            )
             return
-            
+
         response_text = "🎮 Tracked Games & Prices:\n\n"
         for game in games:
             response_text += f"🔹 {game.title.title()}\n"
-            
+
             # Iterate through all store listings for this game
             for listing in game.listings:
                 if listing.prices:
                     # Get the most recent price record (last in the list)
                     latest_price = listing.prices[-1]
                     price_info = f"{latest_price.price} {latest_price.currency}"
-                    
+
                     if latest_price.discount_percent > 0:
                         price_info += f" (📉 -{latest_price.discount_percent}%)"
-                        
+
                     response_text += f"   └ 🏪 {listing.store.name}: {price_info}\n"
                 else:
-                    response_text += f"   └ 🏪 {listing.store.name}: Waiting for price...\n"
+                    response_text += (
+                        f"   └ 🏪 {listing.store.name}: Waiting for price...\n"
+                    )
             response_text += "\n"
-            
+
         await message.answer(response_text)
     except Exception as e:
         logger.error(f"Database error: {e}")
         await message.answer("❌ Error connecting to the database.")
     finally:
         db.close()
+
 
 async def main() -> None:
     """
@@ -100,6 +108,7 @@ async def main() -> None:
         await dp.start_polling(bot)
     except Exception as e:
         logger.error(f"Failed to start bot: {e}")
+
 
 if __name__ == "__main__":
     asyncio.run(main())

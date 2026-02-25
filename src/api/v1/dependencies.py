@@ -9,6 +9,7 @@ engine = create_engine(settings.DATABASE_URL, pool_pre_ping=True)
 # Session Factory
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
+
 def get_db():
     """
     Dependency, которая выдает сессию БД для каждого запроса (Request).
