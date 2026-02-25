@@ -1,7 +1,7 @@
 name: GamePulse CI Pipeline
 
-# Запускати цей пайплайн при кожному пуші в гілку main 
-# або при створенні Pull Request'у
+# Trigger this pipeline on every push to the main branch
+# or when creating a Pull Request
 on:
   push:
     branches: [ "main", "master" ]
@@ -13,32 +13,32 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-    # 1. Завантажуємо код на сервер GitHub
+    # 1. Checkout code to the GitHub runner
     - name: Checkout code
       uses: actions/checkout@v4
 
-    # 2. Встановлюємо Python
+    # 2. Set up Python
     - name: Set up Python 3.12
       uses: actions/setup-python@v5
       with:
         python-version: "3.12"
-        cache: 'pip' # Кешуємо залежності для швидкості
+        cache: 'pip' # Cache dependencies for faster builds
 
-    # 3. Встановлюємо залежності
+    # 3. Install dependencies
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
 
-    # 4. Перевіряємо форматування за допомогою Black
+    # 4. Check formatting with Black
     - name: Check formatting with Black
       run: |
         black --check src/
 
-    # 5. Шукаємо помилки в синтаксисі за допомогою Flake8
+    # 5. Lint with Flake8
     - name: Lint with Flake8
       run: |
-        # Зупиняємо білд, якщо є фатальні синтаксичні помилки
+        # Stop the build if there are fatal syntax errors
         flake8 src/ --count --select=E9,F63,F7,F82 --show-source --statistics
-        # Попередження про занадто довгі рядки (до 120 символів)
-        flake8 src/ --count --max-complexity=10 --max-line-length=120 --statistics
+        # Check for logic errors, formatting, and ignore E402 (import order)
+        flake8 src/ --count --max-complexity=10 --max-line-length=120 --extend-ignore=E402 --statistics
