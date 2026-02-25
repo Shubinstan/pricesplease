@@ -1,0 +1,49 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: gamepulse_db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: gamepulse
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d gamepulse"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build: .
+    container_name: gamepulse_api
+    # Start FastAPI server
+    command: uvicorn src.main:app --host 0.0.0.0 --port 8000
+    ports:
+      - "8000:8000"
+    environment:
+      # Override the DB URL to point to the docker container named 'db'
+      - DATABASE_URL=postgresql://postgres:password@db:5432/gamepulse
+    depends_on:
+      db:
+        condition: service_healthy
+
+  bot:
+    build: .
+    container_name: gamepulse_bot
+    # Start the Telegram Bot
+    command: python src/bot/main.py
+    environment:
+      - DATABASE_URL=postgresql://postgres:password@db:5432/gamepulse
+    env_file:
+      - .env # Loads the TELEGRAM_BOT_TOKEN
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  postgres_data:

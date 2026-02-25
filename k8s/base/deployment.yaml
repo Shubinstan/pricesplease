@@ -1,0 +1,78 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres-deployment
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:15-alpine
+          env:
+            - name: POSTGRES_USER
+              value: "postgres"
+            - name: POSTGRES_PASSWORD
+              value: "password"
+            - name: POSTGRES_DB
+              value: "gamepulse"
+          ports:
+            - containerPort: 5432
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-deployment
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: gamepulse-api
+  template:
+    metadata:
+      labels:
+        app: gamepulse-api
+    spec:
+      containers:
+        - name: api
+          image: gamepulse-api:latest
+          imagePullPolicy: Never
+          command: ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000"]
+          ports:
+            - containerPort: 8000
+          envFrom:
+            - configMapRef:
+                name: gamepulse-config
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bot-deployment
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: gamepulse-bot
+  template:
+    metadata:
+      labels:
+        app: gamepulse-bot
+    spec:
+      containers:
+        - name: bot
+          image: gamepulse-bot:latest
+          imagePullPolicy: Never
+          # Указываем команду для запуска бота
+          command: ["python", "src/bot/main.py"]
+          envFrom:
+            - configMapRef:
+                name: gamepulse-config
+          env:
+            - name: TELEGRAM_BOT_TOKEN
+              value: "8301854520:AAHLZ3DXQhkxULpkSaIhC3AndKc9m5GPYhE"
