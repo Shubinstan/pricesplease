@@ -48,6 +48,21 @@ def create_app() -> FastAPI:
             "game_id": game.id,
         }
 
+    @app.get("/api/v1/games/search", tags=["Games"])
+    def search_games(query: str, db: Session = Depends(get_db)):
+        """
+        Search for games by title (case-insensitive partial match).
+        Limits the output to 5 results to avoid overloading the bot interface.
+        """
+        if not query or len(query) < 2:
+            return {"status": "error", "message": "Search query too short"}
+
+        games = db.query(Game).filter(Game.title.ilike(f"%{query}%")).limit(5).all()
+
+        results = [{"id": str(game.id), "title": game.title} for game in games]
+
+        return {"status": "success", "found": len(results), "data": results}
+
     return app
 
 

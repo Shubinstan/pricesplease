@@ -37,8 +37,9 @@ async def command_start_handler(message: Message) -> None:
         f"Greetings, Inspector {message.from_user.full_name}. 🛂\n\n"
         f"Welcome to GamePulse. I am here to track game prices and discounts across multiple stores.\n\n"
         f"Commands available:\n"
-        f"/status - Check system health\n"
-        f"/games - List tracked games"
+        f"/search <title> - Search for a specific game\n"
+        f"/status - Check system health and collection size\n"
+        f"/games - List all tracked games"
     )
     await message.answer(welcome_text)
 
@@ -46,10 +47,76 @@ async def command_start_handler(message: Message) -> None:
 @dp.message(Command("status"))
 async def status_handler(message: Message) -> None:
     """
-    Handles the /status command. Returns system health purely functionally.
+    Handles the /status command. Returns collection count and system health.
     """
     logger.info(f"User {message.from_user.id} requested system status.")
-    await message.answer("🟢 System is ONLINE.\n\nDatabase: Connected\nScraper: Ready")
+    db = SessionLocal()
+    try:
+        games_count = db.query(Game).count()
+        await message.answer(f"🟢 Collection: {games_count} games\n\nDatabase: Connected\nScraper: Ready")
+    except Exception as e:
+        logger.error(f"Database error in status: {e}")
+        await message.answer("❌ Error connecting to the database.")
+    finally:
+        db.close()
+
+
+@dp.message(Command("search"))
+async def search_handler(message: Message) -> None:
+    """
+    Handles the /search command. Expects a query: /search witcher
+    """
+    # Extract query from the message text
+    command_parts = message.text.split(maxsplit=1)
+    
+    if len(command_parts) < 2:
+        await message.answer("Please provide a game title. Example: /search witcher")
+        return
+        
+    query = command_parts[1]
+    
+    if len(query) < 2:
+        await message.answer("Search query is too short. Please enter at least 2 characters.")
+        return
+
+    logger.info(f"User {message.from_user.id} searched for: {query}")
+    
+    db = SessionLocal()
+    try:
+        # Case-insensitive search using ilike
+        games = db.query(Game).filter(Game.title.ilike(f"%{query}%")).limit(5).all()
+
+        if not games:
+            await message.answer(f"🔍 No games found matching '{query}'.")
+            return
+
+        response_text = f"🔍 Search results for '{query}':\n\n"
+        for game in games:
+            response_text += f"🔹 {game.title.title()}\n"
+
+            # Iterate through all store listings for this game
+            for listing in game.listings:
+                if listing.prices:
+                    # Get the most recent price record (last in the list)
+                    latest_price = listing.prices[-1]
+                    price_info = f"{latest_price.price} {latest_price.currency}"
+
+                    if latest_price.discount_percent > 0:
+                        price_info += f" (📉 -{latest_price.discount_percent}%)"
+
+                    response_text += f"   └ 🏪 {listing.store.name}: {price_info}\n"
+                else:
+                    response_text += (
+                        f"   └ 🏪 {listing.store.name}: Waiting for price...\n"
+                    )
+            response_text += "\n"
+
+        await message.answer(response_text)
+    except Exception as e:
+        logger.error(f"Database error during search: {e}")
+        await message.answer("❌ Error connecting to the database.")
+    finally:
+        db.close()
 
 
 @dp.message(Command("games"))
