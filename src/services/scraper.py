@@ -1,5 +1,7 @@
 import asyncio
 import re
+import sys
+import urllib.parse
 from playwright.async_api import async_playwright
 import requests
 
@@ -26,15 +28,24 @@ def extract_discount(text: str) -> int:
     return 0
 
 
-async def scrape_steam():
-    print("🚀 Initializing Playwright...")
+async def scrape_steam(search_term: str):
+    print(f"🚀 Initializing Playwright for '{search_term}'...")
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
         page = await browser.new_page()
 
-        print("🌐 Navigating to Steam Search...")
-        await page.goto("https://store.steampowered.com/search/?term=witcher")
-        await page.wait_for_selector("a.search_result_row")
+        # Кодируем пробелы и спецсимволы для URL
+        encoded_term = urllib.parse.quote(search_term)
+        print(f"🌐 Navigating to Steam Search for '{search_term}'...")
+        await page.goto(f"https://store.steampowered.com/search/?term={encoded_term}")
+
+        try:
+            # Ждем появления результатов (максимум 5 секунд)
+            await page.wait_for_selector("a.search_result_row", timeout=5000)
+        except Exception:
+            print(f"❌ No results found on Steam for '{search_term}'.")
+            await browser.close()
+            return
 
         games = await page.query_selector_all("a.search_result_row")
         print(f"🎮 Found {len(games)} games. Processing top 3...\n")
@@ -89,4 +100,6 @@ async def scrape_steam():
 
 
 if __name__ == "__main__":
-    asyncio.run(scrape_steam())
+
+    query = " ".join(sys.argv[1:]) if len(sys.argv) > 1 else "witcher"
+    asyncio.run(scrape_steam(query))
