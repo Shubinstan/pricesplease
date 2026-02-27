@@ -65,7 +65,7 @@ async def status_handler(message: Message) -> None:
 
 @dp.message(Command("search"))
 async def search_handler(message: Message) -> None:
-    """Handles the /search command and returns inline buttons."""
+    """Handles the /search command with Live Scraping fallback."""
     command_parts = message.text.split(maxsplit=1)
 
     if len(command_parts) < 2:
@@ -75,20 +75,65 @@ async def search_handler(message: Message) -> None:
     query = command_parts[1]
 
     if len(query) < 2:
-        await message.answer("Search query is too short.")
+        await message.answer(
+            "Search query is too short. Please enter at least 2 characters."
+        )
         return
 
     logger.info(f"User {message.from_user.id} searched for: {query}")
 
     db = SessionLocal()
     try:
-        games = db.query(Game).filter(Game.title.ilike(f"%{query}%")).limit(5).all()
+        # 1. First, search in our local database
+        games = db.query(Game).filter(Game.title.ilike(f"%{query}%")).limit(10).all()
 
+        # 2. If the database is empty for this query, trigger LIVE SEARCH
         if not games:
-            await message.answer(f"🔍 No games found matching '{query}'.")
-            return
+            loading_msg = await message.answer(
+                f"⏳ Searching for '{query}' in stores. This might take a few seconds..."
+            )
 
-        # Create Inline Keyboard
+            custom_env = os.environ.copy()
+            custom_env["PYTHONIOENCODING"] = "utf-8"
+
+            # Run the scraper as a background process
+            process = await asyncio.create_subprocess_exec(
+                sys.executable,
+                "src/services/scraper.py",
+                query,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                env=custom_env,
+            )
+
+            stdout, stderr = (
+                await process.communicate()
+            )  # Wait until the scraper finishes its job
+
+            if stdout:
+                logger.info(
+                    f"Scraper Output:\n{stdout.decode('utf-8', errors='replace')}"
+                )
+            if stderr:
+                logger.error(
+                    f"Scraper Error:\n{stderr.decode('utf-8', errors='replace')}"
+                )
+
+            # 3. Check the database again after the scraper has finished
+            games = (
+                db.query(Game).filter(Game.title.ilike(f"%{query}%")).limit(10).all()
+            )
+
+            # Delete the "Searching..." loading message
+            await loading_msg.delete()
+
+            if not games:
+                await message.answer(
+                    f"🔍 Unfortunately, the game '{query}' was not found in stores either."
+                )
+                return
+
+        # 4. Create Inline Keyboard with the results
         keyboard = []
         for game in games:
             # callback_data is limited to 64 bytes. UUID is 36 chars.
